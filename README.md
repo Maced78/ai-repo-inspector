@@ -45,26 +45,46 @@ npm run typecheck
 npm test
 ```
 
-## CLI
+## Interfaces (hybrid)
+
+Both adapters call the same `inspect()` / `render()` functions in `src/core.ts`,
+so they produce the same report for the same input. They differ only in
+**what the caller is allowed to do**.
+
+### CLI — for a developer on their own machine or in CI
 
 ```bash
-npm run inspector -- review --repo ./path/to/repo --format markdown
-npm run inspector -- review --repo ./path/to/repo --validate "npm test"
+npm run inspector -- review --repo ./path/to/repo
+npm run inspector -- review --repo ./path/to/repo --base-ref origin/main --format json
+npm run inspector -- review --repo ./path/to/repo --validate "npm test" --out report.md
 ```
 
-The report is written to `review-report.md`.
+- `--base-ref` defaults to `main`, then `master`.
+- `--validate` runs any shell command (the CLI user is trusted). Each command
+  has a 120 s timeout; output is capped at 8,000 characters (tail kept).
+- Writes `review-report.md` (or `review-report.json` with `--format json`),
+  or the path given by `--out`.
+- Exit codes: `0` ok, `1` a validation failed or the review errored, `2` bad arguments.
 
-## MCP
-
-Start the stdio server with:
+### MCP — for AI coding agents
 
 ```bash
+INSPECTOR_ALLOWED_ROOT=/path/to/workspaces \
+INSPECTOR_ALLOWED_VALIDATIONS="npm test;npm run typecheck" \
 npm run mcp-server
 ```
 
-It exposes a `review_repository` tool. Inspect the implementation to determine
-its current input contract and whether it is suitable for the production model
-you propose.
+Tool `review_repository` input:
+
+| field | type | notes |
+|---|---|---|
+| `repo_path` | string, required | must resolve inside `INSPECTOR_ALLOWED_ROOT` (default: server cwd) |
+| `base_ref` | string, optional | refs starting with `-` are rejected |
+| `validation_commands` | string[], optional | each must exactly match an entry in `INSPECTOR_ALLOWED_VALIDATIONS` (default: none) |
+| `format` | `markdown` \| `json`, optional | |
+
+The report is returned in the tool result (nothing is written to disk).
+Errors are returned as `isError: true` with a one-line message.
 
 ## Project layout
 
@@ -74,8 +94,8 @@ src/cli.ts          command-line adapter
 src/mcp-server.ts   MCP adapter
 src/git.ts          Git inspection
 src/validation.ts   validation execution
-src/report.ts       Markdown report generation
-test/               public starter tests
+src/report.ts       Markdown / JSON report generation
+test/               unit and integration tests
 ```
 
 When finished, submit via **Security → Report a vulnerability** on this
