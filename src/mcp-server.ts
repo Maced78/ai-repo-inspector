@@ -3,6 +3,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
 import { enforceAgentPolicy, policyFromEnv, reviewRepository } from "./core.js";
+import { wrapForAgent } from "./agent-output.js";
 
 const policy = policyFromEnv();
 const server = new McpServer({ name: "repository-inspector", version: "2.1.0" });
@@ -33,7 +34,7 @@ server.tool(
         policy,
       );
       const report = await reviewRepository(request);
-      return { content: [{ type: "text", text: report }] };
+      return { content: [{ type: "text", text: wrapForAgent(report) }] };
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       return { content: [{ type: "text", text: `Error: ${message}` }], isError: true };
